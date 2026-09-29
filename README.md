@@ -47,6 +47,7 @@ data/            database SQLite, foto, log (non versionato)
 
   La scheda mostra tutti i siti su cui compare, ognuno col suo prezzo. Come prezzo principale usa il più basso.
 - **Posizione**: coordinate del portale quando sono esatte, altrimenti geocoding dell'indirizzo, altrimenti il centro della frazione. Sulla mappa i marker tratteggiati indicano una posizione approssimativa. Gli annunci con coordinate esatte fuori dal confine comunale vengono scartati.
+- **Privati**: il filtro "Inserzionista → Solo privati" mostra gli immobili pubblicati direttamente dal proprietario, con l'etichetta verde "Privato". Ogni portale lo indica a modo suo: Subito `company`, Idealista `data-is-professional-ad`, Immobiliare nessuna agenzia e referente di tipo `user`, Casa.it `publisherType`, Wikicasa nessuna agenzia. Se lo stesso immobile è pubblicato sia dal proprietario sia da un'agenzia, la scheda lo segnala. Si contatta il proprietario solo dal suo annuncio: l'app non cerca i proprietari nei registri pubblici.
 - **Annunci rimossi**: un annuncio che non compare per 2 aggiornamenti completi consecutivi diventa "non più online".
 - **Foto**: la copertina viene scaricata durante l'aggiornamento. Le altre foto vengono scaricate alla prima apertura della scheda e poi servite dal disco.
 - **Data di pubblicazione**: Subito e Wikicasa la forniscono. Per gli altri portali si usa la data in cui l'annuncio è stato trovato la prima volta, indicata nell'interfaccia come "visto …".

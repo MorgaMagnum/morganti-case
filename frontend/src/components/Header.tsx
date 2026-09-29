@@ -44,6 +44,7 @@ export default function Header() {
 
   const lastUpdate = facets.data?.data?.last_update
   const runs = status.data?.data?.runs ?? []
+  const lastFull = status.data?.data?.last_full_update
   const failed = runs.filter((r) => r.status === 'error').length
 
   return (
@@ -70,18 +71,35 @@ export default function Header() {
               ? `Aggiornato ${timeAgo(lastUpdate)}`
               : 'Mai aggiornato'}
         </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={running || start.isPending}
-          onClick={() => start.mutate()}
-        >
-          {running ? 'In corso…' : 'Aggiorna ora'}
-        </button>
+        <div className="update-buttons" role="group" aria-label="Aggiorna gli annunci">
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={running || start.isPending}
+            onClick={() => start.mutate('rapido')}
+            title="Solo gli annunci nuovi, circa 1 minuto"
+          >
+            {running ? 'In corso…' : 'Cerca novità'}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={running || start.isPending}
+            onClick={() => start.mutate('completo')}
+            title="Rilegge tutti gli annunci: rileva anche prezzi cambiati e annunci rimossi. Alcuni minuti."
+          >
+            Completo
+          </button>
+        </div>
 
         {open && (
           <div className="status-panel" role="dialog" aria-label="Stato delle fonti">
             <h3>Stato delle fonti</h3>
+            <p className="muted small">
+              <strong>Cerca novità</strong> legge solo gli annunci più recenti (circa 1 minuto).{' '}
+              <strong>Completo</strong> rilegge tutto e rileva anche prezzi cambiati e annunci rimossi.
+              {lastFull ? ` Ultimo completo: ${formatDateTime(lastFull)}.` : ' Nessun aggiornamento completo finora.'}
+            </p>
             {start.error && <p className="error-text">{(start.error as Error).message}</p>}
             {runs.length === 0 && <p className="muted">Nessun aggiornamento eseguito finora.</p>}
             <ul>
@@ -90,6 +108,7 @@ export default function Header() {
                   <span className={`dot ${r.status === 'running' ? 'dot-running' : r.status === 'ok' ? 'dot-ok' : 'dot-warn'}`} />
                   <span className="run-name">
                     {r.label} · {CONTRACT_LABEL[r.contract]}
+                    <span className={`run-mode run-mode-${r.mode}`}>{r.mode}</span>
                   </span>
                   <span className="run-meta">
                     {r.status === 'error' ? (

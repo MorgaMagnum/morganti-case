@@ -25,6 +25,7 @@ class WikicasaScraper(Scraper):
     name = "wikicasa"
     label = "Wikicasa"
     fetch_mode = "browser"
+    newest_first_query = ""  # already sorted by date; sort params are ignored
 
     def page_url(self, contract: Contract, page: int) -> str:
         url = f"{BASE}/{_PATHS[contract]}/cascina/"

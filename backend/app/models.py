@@ -72,6 +72,7 @@ class ScrapeRun(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     source: str = Field(index=True)
     contract: str
+    mode: str = "completo"  # completo | rapido
     status: str = "running"  # running | ok | error
     started_at: datetime = Field(default_factory=utcnow)
     finished_at: Optional[datetime] = None

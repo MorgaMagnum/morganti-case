@@ -104,7 +104,9 @@ class BrowserFetcher:
 
     CHALLENGE_WAIT_MS = 20_000
 
-    def __init__(self) -> None:
+    def __init__(self, profile_name: str = "default") -> None:
+        # Chrome locks its profile directory, so parallel browsers need one each.
+        self._profile_dir = config.BROWSER_PROFILE_DIR / profile_name
         self._pw = None
         self._ctx = None
         self._page = None
@@ -121,7 +123,7 @@ class BrowserFetcher:
         if not config.BROWSER_HEADLESS:
             args.append("--window-position=-2400,-2400")
         self._ctx = self._pw.chromium.launch_persistent_context(
-            str(config.BROWSER_PROFILE_DIR),
+            str(self._profile_dir),
             channel="chrome",
             headless=config.BROWSER_HEADLESS,
             locale="it-IT",

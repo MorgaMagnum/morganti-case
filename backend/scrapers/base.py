@@ -54,10 +54,18 @@ class Scraper(ABC):
     name: str
     label: str
     fetch_mode: FetchMode = "browser"
+    # Query string that makes the site list the newest ads first ("" = already the default).
+    newest_first_query: str = ""
 
     @abstractmethod
     def page_url(self, contract: Contract, page: int) -> str:
         """URL of the given (1-based) results page."""
+
+    def search_url(self, contract: Contract, page: int, newest_first: bool = False) -> str:
+        url = self.page_url(contract, page)
+        if newest_first and self.newest_first_query:
+            url += ("&" if "?" in url else "?") + self.newest_first_query
+        return url
 
     @abstractmethod
     def parse(self, html: str, contract: Contract) -> ParsedPage:

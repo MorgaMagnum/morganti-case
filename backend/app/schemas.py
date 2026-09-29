@@ -98,6 +98,7 @@ class RunInfo(BaseModel):
     source: str
     label: str
     contract: str
+    mode: str
     status: str
     started_at: datetime
     finished_at: Optional[datetime]
@@ -112,3 +113,4 @@ class RunInfo(BaseModel):
 class ScrapeStatus(BaseModel):
     running: bool
     runs: list[RunInfo]
+    last_full_update: Optional[datetime] = None  # removals/price changes are only checked here

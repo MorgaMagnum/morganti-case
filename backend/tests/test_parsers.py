@@ -32,6 +32,22 @@ def assert_common(listings, source):
     assert sum(1 for x in listings if x.image_urls) >= len(listings) * 0.8
 
 
+@pytest.mark.parametrize(
+    "scraper, page, expected",
+    [
+        # Sort parameters verified against the live sites (Sept 2026).
+        (ImmobiliareScraper(), 2, "https://www.immobiliare.it/vendita-case/cascina/?pag=2&criterio=data&ordine=desc"),
+        (CasaItScraper(), 1, "https://www.casa.it/vendita/residenziale/cascina/?sortType=date-desc"),
+        (IdealistaScraper(), 2, "https://www.idealista.it/vendita-case/cascina-pisa/lista-2.htm?ordine=pubblicazione-desc"),
+        (SubitoScraper(), 1, "https://www.subito.it/annunci-toscana/vendita/immobili/pisa/cascina/"),  # newest by default
+        (WikicasaScraper(), 1, "https://www.wikicasa.it/vendita-case/cascina/"),  # newest by default
+    ],
+)
+def test_newest_first_urls(scraper, page, expected):
+    assert scraper.search_url("vendita", page, newest_first=True) == expected
+    assert scraper.search_url("vendita", page) == scraper.page_url("vendita", page)
+
+
 class TestImmobiliare:
     def test_parses_results_with_coordinates_and_photos(self):
         page = ImmobiliareScraper().parse(load("immobiliare_vendita.html"), "vendita")

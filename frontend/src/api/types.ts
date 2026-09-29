@@ -1,5 +1,6 @@
 export type Contract = 'vendita' | 'affitto'
 export type GeoPrecision = 'esatta' | 'via' | 'approssimativa' | 'frazione' | 'comune'
+export type ScrapeMode = 'completo' | 'rapido'
 export type PositionCertainty = 'certa' | 'incerta'
 export type SortKey = 'published_desc' | 'published_asc' | 'price_asc' | 'price_desc' | 'm2_desc' | 'price_m2_asc'
 
@@ -83,6 +84,7 @@ export interface RunInfo {
   source: string
   label: string
   contract: Contract
+  mode: ScrapeMode
   status: 'running' | 'ok' | 'error'
   started_at: string
   finished_at: string | null
@@ -97,4 +99,5 @@ export interface RunInfo {
 export interface ScrapeStatus {
   running: boolean
   runs: RunInfo[]
+  last_full_update: string | null
 }

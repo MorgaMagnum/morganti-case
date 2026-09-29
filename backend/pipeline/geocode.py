@@ -25,13 +25,16 @@ class GeocoderUnavailable(Exception):
 class NominatimGeocoder:
     """Cache rows are written through the caller's session (SQLite allows one writer)."""
 
+    # Shared by every instance: crawler threads each own a geocoder, but Nominatim's
+    # 1 request/second limit applies to this whole machine.
+    _rate_lock = threading.Lock()
+    _last_request = 0.0
+
     def __init__(self, bounds: tuple[float, float, float, float], session: Session) -> None:
         min_lng, min_lat, max_lng, max_lat = bounds
         self._viewbox = f"{min_lng},{max_lat},{max_lng},{min_lat}"
         self._session = session
         self._client = httpx.Client(headers={"User-Agent": config.GEOCODER_USER_AGENT}, timeout=20)
-        self._lock = threading.Lock()
-        self._last = 0.0
 
     def geocode(self, address: str) -> Optional[tuple[float, float]]:
         query = address.strip()
@@ -58,11 +61,12 @@ class NominatimGeocoder:
         return result
 
     def _lookup(self, query: str) -> Optional[tuple[float, float]]:
-        with self._lock:
-            wait = MIN_INTERVAL_S - (time.monotonic() - self._last)
+        cls = type(self)
+        with cls._rate_lock:
+            wait = MIN_INTERVAL_S - (time.monotonic() - cls._last_request)
             if wait > 0:
                 time.sleep(wait)
-            self._last = time.monotonic()
+            cls._last_request = time.monotonic()
             try:
                 resp = self._client.get(
                     NOMINATIM_URL,

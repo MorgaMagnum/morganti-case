@@ -5,9 +5,9 @@ import sys
 import threading
 from datetime import timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -49,11 +49,14 @@ def _latest_runs(session: Session) -> list[RunInfo]:
 @router.get("/status", response_model=Envelope[ScrapeStatus])
 def status(session: SessionDep):
     running = _process_running() or _db_running(session)
-    return Envelope(data=ScrapeStatus(running=running, runs=_latest_runs(session)))
+    last_full = session.exec(
+        select(func.max(ScrapeRun.finished_at)).where(ScrapeRun.status == "ok", ScrapeRun.mode == "completo")
+    ).one()
+    return Envelope(data=ScrapeStatus(running=running, runs=_latest_runs(session), last_full_update=last_full))
 
 
 @router.post("", response_model=Envelope[ScrapeStatus])
-def start(session: SessionDep):
+def start(session: SessionDep, mode: Literal["completo", "rapido"] = Query("completo")):
     global _process
     with _lock:
         if _process_running() or _db_running(session):
@@ -61,8 +64,9 @@ def start(session: SessionDep):
                             data=ScrapeStatus(running=True, runs=_latest_runs(session)))
         config.ensure_dirs()
         log = open(config.DATA_DIR / "scrape.log", "ab")
+        args = [sys.executable, "cli.py", "scrape"] + (["--rapido"] if mode == "rapido" else [])
         _process = subprocess.Popen(
-            [sys.executable, "cli.py", "scrape"],
+            args,
             cwd=BACKEND_DIR,
             stdout=log,
             stderr=subprocess.STDOUT,

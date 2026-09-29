@@ -1,12 +1,14 @@
 """Command line entry point.
 
     python cli.py scrape                      # all sites, sale + rent
+    python cli.py scrape --rapido             # only what's new, ~1 minute
     python cli.py scrape --source subito --contract affitto --max-pages 2
 """
 
 import argparse
 import logging
 import sys
+import time
 
 from app import config
 from pipeline.runner import run_all
@@ -21,6 +23,12 @@ def main(argv: list[str] | None = None) -> int:
     scrape.add_argument("--source", action="append", choices=sorted(BY_NAME), help="solo queste fonti")
     scrape.add_argument("--contract", action="append", choices=CONTRACTS, help="vendita e/o affitto")
     scrape.add_argument("--max-pages", type=int, default=config.MAX_PAGES_PER_SEARCH)
+    scrape.add_argument(
+        "--rapido",
+        action="store_true",
+        help="solo le novità: annunci più recenti, si ferma alla prima pagina senza annunci nuovi "
+             "(non rileva prezzi cambiati né annunci rimossi nelle pagine vecchie)",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -31,9 +39,11 @@ def main(argv: list[str] | None = None) -> int:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     scrapers = [BY_NAME[name] for name in args.source] if args.source else list(ALL_SCRAPERS)
-    runs = run_all(scrapers, tuple(args.contract or CONTRACTS), args.max_pages)
+    started = time.monotonic()
+    runs = run_all(scrapers, tuple(args.contract or CONTRACTS), args.max_pages, quick=args.rapido)
 
-    print("\nRiepilogo:")
+    minutes = (time.monotonic() - started) / 60
+    print(f"\nRiepilogo ({'rapido' if args.rapido else 'completo'}, {minutes:.1f} min):")
     for run in runs:
         print(f"  {run.source:12} {run.contract:8} {run.status:6} pagine={run.pages:3} trovati={run.found:4} "
               f"nuovi={run.new:4} aggiornati={run.updated:4} scartati={run.skipped:4} {run.error or ''}")

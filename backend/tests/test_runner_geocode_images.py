@@ -1,16 +1,20 @@
 import io
+import threading
+import time
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine, delete, select
 
-from app.db import engine, init_db
+from app import config
+from app.db import crawler_engine, engine, init_db
 from app.main import app
-from app.models import GeocodeCache, Listing, ListingImage, ScrapeRun
+from app.models import GeocodeCache, Listing, ListingImage, ScrapeRun, SourceLink
 from pipeline import geocode as geocode_mod
+from pipeline import runner as runner_mod
 from pipeline.geo import CascinaGeo
 from pipeline.geocode import NominatimGeocoder
 from pipeline.runner import crawl_one
@@ -33,7 +37,7 @@ def raw(i: int) -> RawListing:
     return RawListing(
         source="fake", external_id=str(i), url=f"https://fake/{i}", contract="vendita",
         title=f"Casa {i}", property_type_raw="Casa indipendente", price=100000 + i * 20000,
-        surface_m2=80 + i * 15, city="Cascina", lat=43.6847, lng=10.48912 + i * 0.01, coords_exact=True,
+        surface_m2=80 + i * 15, city="Cascina", lat=43.6847, lng=10.48912 + (i % 10) * 0.004, coords_exact=True,
         address=f"Via Numero {i}",
     )
 
@@ -142,6 +146,113 @@ def test_crawl_records_fetch_errors(session, store):
     run = crawl_one(FakeScraper({1: [raw(1)]}), "vendita", Broken(), store, session, 10)
     assert (run.status, run.error) == ("error", "HTTP 403")
 
+
+def test_quick_mode_stops_at_first_page_without_news(session, store):
+    crawl_one(FakeScraper({1: [raw(1), raw(2)]}), "vendita", FakeFetcher(), store, session, 10)
+    # Page 1 has one new ad, page 2 only known ones -> page 3 must not be fetched.
+    scraper = FakeScraper({1: [raw(9), raw(1)], 2: [raw(2)], 3: [raw(10)]})
+    fetcher = FakeFetcher()
+    run = crawl_one(scraper, "vendita", fetcher, store, session, 10, quick=True)
+    assert len(fetcher.urls) == 2
+    assert (run.mode, run.status, run.new) == ("rapido", "ok", 1)
+
+
+def test_quick_mode_asks_for_newest_first_and_never_deactivates(session, store):
+    class Sorted(FakeScraper):
+        newest_first_query = "sort=new"
+
+    crawl_one(FakeScraper({1: [raw(1), raw(2)]}), "vendita", FakeFetcher(), store, session, 10)
+    fetcher = FakeFetcher()
+    for _ in range(3):
+        crawl_one(Sorted({1: [raw(1)]}), "vendita", fetcher, store, session, 10, quick=True)
+    assert fetcher.urls[0].endswith("?p=1&sort=new")
+    assert all(l.is_active for l in session.exec(select(Listing)).all())
+
+
+def test_quick_mode_respects_its_own_page_cap(session, store):
+    pages = {i: [raw(100 + i)] for i in range(1, 20)}  # every page has news
+    fetcher = FakeFetcher()
+    crawl_one(FakeScraper(pages), "vendita", fetcher, store, session, 60, quick=True)
+    assert len(fetcher.urls) == runner_mod.QUICK_MAX_PAGES
+
+
+# ---------------- parallel run ----------------
+
+def test_run_all_crawls_sources_in_parallel_without_duplicates(monkeypatch):
+    init_db()
+    with Session(engine) as s:
+        for table in reversed(SQLModel.metadata.sorted_tables):
+            s.exec(delete(table))
+        s.commit()
+
+    class NamedFake(FakeScraper):
+        def __init__(self, name, pages):
+            super().__init__(pages)
+            self.name = name
+
+    # The same property is listed on both portals: it must end up as one listing.
+    def listing_for(source, i):
+        return RawListing(**{**raw(i).__dict__, "source": source})
+
+    a = NamedFake("alpha", {1: [listing_for("alpha", i) for i in (1, 2, 3)]})
+    b = NamedFake("beta", {1: [listing_for("beta", i) for i in (1, 2, 3)]})
+    threads = set()
+
+    class RecordingFetcher(FakeFetcher):
+        def get(self, url):
+            threads.add(threading.get_ident())
+            time.sleep(0.05)
+            return super().get(url)
+
+        def close(self):
+            pass
+
+    runs = runner_mod.run_all([a, b], contracts=("vendita",), fetcher_factory=lambda _s: RecordingFetcher())
+    assert sorted((r.source, r.status, r.found) for r in runs) == [("alpha", "ok", 3), ("beta", "ok", 3)]
+    assert len(threads) == 2
+    with Session(engine) as s:
+        assert len(s.exec(select(Listing)).all()) == 3
+        assert {l.source for l in s.exec(select(SourceLink)).all()} == {"alpha", "beta"}
+
+
+def test_page_processing_releases_the_database_during_cover_downloads():
+    # Regression: the crawler's dirty ScrapeRun was autoflushed by the first query of
+    # process_page, so the thread held SQLite's write lock through the (slow) cover
+    # downloads and every other crawler thread failed with "database is locked".
+    init_db()
+    with Session(engine) as s:
+        for table in reversed(SQLModel.metadata.sorted_tables):
+            s.exec(delete(table))
+        s.commit()
+    downloading, release = threading.Event(), threading.Event()
+
+    class SlowImages(NoImages):
+        def fetch_many(self, urls):
+            downloading.set()
+            release.wait(timeout=10)
+            return super().fetch_many(urls)
+
+    def crawler_thread():
+        with Session(crawler_engine, expire_on_commit=False) as s:
+            run = ScrapeRun(source="fake", contract="vendita")
+            s.add(run)
+            s.commit()
+            run.pages = 1  # pending change, as in crawl_one
+            store = ListingStore(s, CascinaGeo.from_config(), NoGeocoder(), SlowImages())
+            store.process_page([RawListing(**{**raw(1).__dict__, "image_urls": ("https://img/1.jpg",)})])
+
+    worker = threading.Thread(target=crawler_thread)
+    worker.start()
+    try:
+        assert downloading.wait(timeout=10)
+        impatient = create_engine(config.DATABASE_URL, connect_args={"timeout": 1})
+        with Session(impatient) as s:
+            s.add(GeocodeCache(query="written during downloads", lat=None, lng=None))
+            s.commit()  # raised "database is locked" before the fix
+        impatient.dispose()
+    finally:
+        release.set()
+        worker.join(timeout=30)
 
 # ---------------- geocoder ----------------
 

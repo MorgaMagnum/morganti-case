@@ -12,6 +12,7 @@ class ImmobiliareScraper(Scraper):
     name = "immobiliare"
     label = "Immobiliare.it"
     fetch_mode = "browser"
+    newest_first_query = "criterio=data&ordine=desc"
 
     def page_url(self, contract: Contract, page: int) -> str:
         url = f"{BASE}/{_PATHS[contract]}/cascina/"

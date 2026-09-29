@@ -1,6 +1,7 @@
 """Persist scraped listings: insert, update, cross-portal merge, deactivation."""
 
 import logging
+import threading
 from collections import Counter
 from datetime import datetime
 from typing import Iterable, Optional, Protocol
@@ -53,21 +54,39 @@ def _near_identical(a: Candidate, b: Candidate) -> bool:
 
 
 class ListingStore:
-    def __init__(self, session: Session, geo: CascinaGeo, geocoder: Geocoder, images: ImageFetcher) -> None:
+    def __init__(
+        self,
+        session: Session,
+        geo: CascinaGeo,
+        geocoder: Geocoder,
+        images: ImageFetcher,
+        write_lock: Optional[threading.Lock] = None,
+    ) -> None:
         self._s = session
         self._geo = geo
         self._geocoder = geocoder
         self._images = images
+        # Shared by all crawler threads: matching + inserting must be atomic, or two
+        # portals listing the same property at the same moment would both insert it.
+        self._write_lock = write_lock or threading.Lock()
 
     # ---- public API -------------------------------------------------------
 
     def process_page(self, raws: Iterable[RawListing]) -> Counter:
         # The same ad can appear twice on a page (e.g. a sponsored slot): keep the first.
         raws = list({(r.source, r.external_id): r for r in reversed(list(raws))}.values())[::-1]
-        known = self._known_links(raws)
+        # Slow network work (cover downloads) happens outside the lock.
+        known_before = self._known_links(raws)
+        # Release the database before the downloads: crawler transactions hold the write lock.
+        self._s.commit()
         covers = self._images.fetch_many(
-            r.image_urls[0] for r in raws if r.image_urls and (r.source, r.external_id) not in known
+            r.image_urls[0] for r in raws if r.image_urls and (r.source, r.external_id) not in known_before
         )
+        with self._write_lock:
+            return self._store_page(raws, covers)
+
+    def _store_page(self, raws: list[RawListing], covers: dict[str, Optional[bytes]]) -> Counter:
+        known = self._known_links(raws)
         counts: Counter = Counter()
         for raw in raws:
             # Commit per listing: keeps SQLite write locks short (the API may be writing
@@ -121,6 +140,10 @@ class ListingStore:
 
     def finalize_missing(self, source: str, contract: str, seen: set[str]) -> int:
         """Called after a complete crawl: ads not seen accumulate misses and eventually go inactive."""
+        with self._write_lock:
+            return self._finalize_missing(source, contract, seen)
+
+    def _finalize_missing(self, source: str, contract: str, seen: set[str]) -> int:
         rows = self._s.exec(
             select(SourceLink)
             .join(Listing, Listing.id == SourceLink.listing_id)

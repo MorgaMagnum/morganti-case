@@ -92,6 +92,10 @@ h1, h2, h3 { margin: 0; }
 }
 .status-panel li:first-child { border-top: 0; }
 .run-name { font-weight: 600; }
+.run-mode { margin-left: 6px; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 600; background: var(--surface-2); color: var(--ink-2); }
+.run-mode-rapido { background: var(--sale-soft); color: var(--sale); }
+.update-buttons { display: inline-flex; gap: 6px; }
+.status-panel > p.muted { margin: 0 0 10px; }
 .run-meta { grid-column: 2; color: var(--muted); }
 
 /* ---------- filters ---------- */

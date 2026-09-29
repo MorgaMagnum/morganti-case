@@ -15,6 +15,7 @@ class CasaItScraper(Scraper):
     name = "casa_it"
     label = "Casa.it"
     fetch_mode = "browser"
+    newest_first_query = "sortType=date-desc"
 
     def page_url(self, contract: Contract, page: int) -> str:
         url = f"{BASE}/{contract}/residenziale/cascina/"

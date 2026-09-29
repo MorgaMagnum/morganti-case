@@ -23,6 +23,7 @@ class SubitoScraper(Scraper):
     name = "subito"
     label = "Subito.it"
     fetch_mode = "http"
+    newest_first_query = ""  # already sorted by date
 
     def page_url(self, contract: Contract, page: int) -> str:
         url = f"{BASE}/annunci-toscana/{contract}/immobili/pisa/cascina/"

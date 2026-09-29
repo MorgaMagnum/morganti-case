@@ -1,14 +1,26 @@
-"""Crawl every configured site and store the results."""
+"""Crawl every configured site and store the results.
+
+Two modes:
+- full ("completo"): every results page of every site. Needed to notice removed ads
+  and price changes on older listings.
+- quick ("rapido"): sites sorted newest first, stopping at the first page without any
+  new ad. Takes about a minute; never marks ads as removed.
+
+Sites are crawled in parallel (one thread, one browser, one politeness budget per
+site); writes to the database are serialized by a shared lock in ListingStore so two
+portals listing the same property at the same moment cannot create a duplicate.
+"""
 
 import logging
+import threading
 from collections import Counter
-from dataclasses import dataclass, field
-from typing import Iterable, Optional
+from concurrent.futures import ThreadPoolExecutor
+from typing import Callable, Iterable, Optional
 
 from sqlmodel import Session, select
 
 from app import config
-from app.db import engine, init_db
+from app.db import crawler_engine, init_db
 from app.models import ScrapeRun, utcnow
 from pipeline.geo import CascinaGeo
 from pipeline.geocode import NominatimGeocoder
@@ -19,21 +31,16 @@ from scrapers.fetchers import BrowserFetcher, Fetcher, FetchError, HttpFetcher
 
 log = logging.getLogger(__name__)
 
+FULL, QUICK = "completo", "rapido"
+QUICK_MAX_PAGES = 5  # safety cap: a quick check should never turn into a full crawl
+MIN_SEEN_RATIO = 0.5
 
-@dataclass
-class Fetchers:
-    http: Fetcher = field(default_factory=HttpFetcher)
-    browser: Fetcher = field(default_factory=BrowserFetcher)
+FetcherFactory = Callable[[Scraper], Fetcher]
 
-    def for_scraper(self, scraper: Scraper) -> Fetcher:
-        return self.http if scraper.fetch_mode == "http" else self.browser
 
-    def close(self) -> None:
-        for fetcher in (self.http, self.browser):
-            try:
-                fetcher.close()
-            except Exception:  # closing must never mask the real outcome
-                log.exception("error closing fetcher")
+def default_fetcher(scraper: Scraper) -> Fetcher:
+    # A separate Chrome profile per site: profiles can't be shared between browsers.
+    return HttpFetcher() if scraper.fetch_mode == "http" else BrowserFetcher(profile_name=scraper.name)
 
 
 def crawl_one(
@@ -43,18 +50,20 @@ def crawl_one(
     store: ListingStore,
     session: Session,
     max_pages: int,
+    quick: bool = False,
 ) -> ScrapeRun:
-    run = ScrapeRun(source=scraper.name, contract=contract)
+    run = ScrapeRun(source=scraper.name, contract=contract, mode=QUICK if quick else FULL)
     session.add(run)
     session.commit()
     counts: Counter = Counter()
     seen: set[str] = set()
     complete = False
+    page_cap = min(max_pages, QUICK_MAX_PAGES) if quick else max_pages
     try:
         page, total = 1, 1
         stopped_early = False
-        while page <= min(total, max_pages):
-            url = scraper.page_url(contract, page)
+        while page <= min(total, page_cap):
+            url = scraper.search_url(contract, page, newest_first=quick)
             log.info("[%s/%s] page %d/%d %s", scraper.name, contract, page, total, url)
             parsed = scraper.parse(fetcher.get(url), contract)
             total = parsed.total_pages
@@ -67,13 +76,25 @@ def crawl_one(
                 stopped_early = page <= total
                 break
             seen.update(page_ids)
-            counts.update(store.process_page(parsed.listings))
+            page_counts = store.process_page(parsed.listings)
+            counts.update(page_counts)
             _apply_counts(run, counts, len(seen))
             session.add(run)
             session.commit()
+            if quick and page_counts["new"] + page_counts["merged"] == 0:
+                log.info("[%s/%s] no new ads on page %d, quick check done", scraper.name, contract, page)
+                break
             page += 1
         # Only a full, trustworthy crawl may mark unseen ads as removed.
-        complete = not stopped_early and total <= max_pages and _plausible(store, scraper.name, contract, seen)
+        complete = (
+            not quick
+            and not stopped_early
+            and total <= max_pages
+            and _plausible(store, scraper.name, contract, seen)
+        )
+        # End the read transaction: it holds the write lock (BEGIN IMMEDIATE), and
+        # finalize_missing may now wait for another thread that needs it.
+        session.commit()
         if complete:
             store.finalize_missing(scraper.name, contract, seen)
         run.status = "ok"
@@ -89,11 +110,8 @@ def crawl_one(
     session.commit()
     log.info("[%s/%s] %s found=%d new=%d merged/updated=%d skipped=%d%s",
              scraper.name, contract, run.status, run.found, run.new, run.updated, run.skipped,
-             "" if complete else " (incomplete: removals not checked)")
+             "" if complete else " (removals not checked)")
     return run
-
-
-MIN_SEEN_RATIO = 0.5
 
 
 def _plausible(store: ListingStore, source: str, contract: str, seen: set[str]) -> bool:
@@ -121,30 +139,73 @@ def _close_interrupted_runs(session: Session) -> None:
     session.commit()
 
 
+def _crawl_source(
+    scraper: Scraper,
+    contracts: tuple[Contract, ...],
+    max_pages: int,
+    quick: bool,
+    geo: CascinaGeo,
+    images: ImageClient,
+    write_lock: threading.Lock,
+    fetcher_factory: FetcherFactory,
+) -> list[ScrapeRun]:
+    """One site, all contracts, in its own thread with its own session and browser."""
+    fetcher = fetcher_factory(scraper)
+    try:
+        with Session(crawler_engine, expire_on_commit=False) as session:
+            geocoder = NominatimGeocoder(geo.bounds, session)
+            try:
+                store = ListingStore(session, geo, geocoder, images, write_lock=write_lock)
+                return [crawl_one(scraper, c, fetcher, store, session, max_pages, quick) for c in contracts]
+            finally:
+                geocoder.close()
+    finally:
+        try:
+            fetcher.close()
+        except Exception:  # closing must never mask the real outcome
+            log.exception("[%s] error closing fetcher", scraper.name)
+
+
 def run_all(
     scrapers: Iterable[Scraper],
     contracts: Iterable[Contract] = CONTRACTS,
     max_pages: int = config.MAX_PAGES_PER_SEARCH,
-    fetchers: Optional[Fetchers] = None,
+    quick: bool = False,
+    fetcher_factory: Optional[FetcherFactory] = None,
 ) -> list[ScrapeRun]:
     init_db()
+    scrapers, contracts = list(scrapers), tuple(contracts)
+    with Session(crawler_engine) as session:
+        _close_interrupted_runs(session)
     geo = CascinaGeo.from_config()
     images = ImageClient()
-    fetchers = fetchers or Fetchers()
-    runs: list[ScrapeRun] = []
+    write_lock = threading.Lock()
+    factory = fetcher_factory or default_fetcher
     try:
-        with Session(engine, expire_on_commit=False) as session:
-            _close_interrupted_runs(session)
-            geocoder = NominatimGeocoder(geo.bounds, session)
-            try:
-                store = ListingStore(session, geo, geocoder, images)
-                for scraper in scrapers:
-                    for contract in contracts:
-                        fetcher = fetchers.for_scraper(scraper)
-                        runs.append(crawl_one(scraper, contract, fetcher, store, session, max_pages))
-            finally:
-                geocoder.close()
+        with ThreadPoolExecutor(max_workers=max(1, len(scrapers)), thread_name_prefix="crawl") as pool:
+            futures = [
+                pool.submit(_crawl_source, s, contracts, max_pages, quick, geo, images, write_lock, factory)
+                for s in scrapers
+            ]
+            runs: list[ScrapeRun] = []
+            for scraper, future in zip(scrapers, futures):
+                try:
+                    runs.extend(future.result())
+                except Exception as exc:  # e.g. the browser could not start at all
+                    log.exception("[%s] crawl aborted", scraper.name)
+                    runs.extend(_failed_runs(scraper, contracts, quick, exc))
+            return runs
     finally:
-        fetchers.close()
         images.close()
-    return runs
+
+
+def _failed_runs(scraper: Scraper, contracts: tuple[Contract, ...], quick: bool, exc: Exception) -> list[ScrapeRun]:
+    with Session(crawler_engine, expire_on_commit=False) as session:
+        runs = [
+            ScrapeRun(source=scraper.name, contract=c, mode=QUICK if quick else FULL, status="error",
+                      finished_at=utcnow(), error=f"{type(exc).__name__}: {exc}"[:1000])
+            for c in contracts
+        ]
+        session.add_all(runs)
+        session.commit()
+        return runs

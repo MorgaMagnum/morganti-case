@@ -168,3 +168,39 @@ def test_facets(client):
 def test_scrape_status(client):
     data = client.get("/api/scrape/status").json()["data"]
     assert data["runs"][0]["label"] == "Immobiliare.it"
+    assert data["runs"][0]["mode"] == "completo"
+    assert data["last_full_update"] is not None
+
+
+def test_scrape_start_passes_quick_mode_to_cli(client, monkeypatch):
+    from app.api import scrape as scrape_api
+
+    launched = []
+
+    class FakePopen:
+        def __init__(self, args, **_kw):
+            launched.append(args)
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(scrape_api.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(scrape_api, "_process", None)
+    assert client.post("/api/scrape", params={"mode": "rapido"}).json()["success"] is True
+    assert client.post("/api/scrape").json()["success"] is True
+    assert launched[0][-1] == "--rapido" and launched[1][-1] == "scrape"
+    assert client.post("/api/scrape", params={"mode": "turbo"}).status_code == 422
+
+
+def test_migration_adds_mode_column_to_old_databases(tmp_path):
+    from sqlalchemy import create_engine as sa_engine
+
+    from app.db import _migrate
+
+    old = sa_engine(f"sqlite:///{(tmp_path / 'old.db').as_posix()}")
+    with old.begin() as conn:
+        conn.exec_driver_sql("CREATE TABLE scraperun (id INTEGER PRIMARY KEY, source VARCHAR, contract VARCHAR)")
+        conn.exec_driver_sql("INSERT INTO scraperun (source, contract) VALUES ('subito', 'vendita')")
+        _migrate(conn)
+        _migrate(conn)  # idempotent
+        assert conn.exec_driver_sql("SELECT mode FROM scraperun").scalar() == "completo"

@@ -6,15 +6,19 @@ Fonti: **Immobiliare.it, Casa.it, Subito.it, Wikicasa, Idealista**. Coprono di f
 
 ## Avvio
 
+Il modo più semplice: **doppio clic su `Avvia Cerca Case.bat`**. Il file ricompila l'interfaccia se è cambiata, avvia il server e apre il browser quando il sito è pronto. Se il sito è già avviato, apre solo il browser. Lascia aperta la finestra nera finché usi il sito; chiudendola il server si spegne.
+
+Per avere l'icona sul Desktop (una volta sola): `.\avvia.ps1 -Collegamento`.
+
 ```powershell
-.\avvia.ps1          # apre http://localhost:8000
+.\avvia.ps1          # come il .bat: apre http://localhost:8000
 .\avvia.ps1 -Dev     # sviluppo: API su :8000, frontend Vite su :5173
 .\aggiorna.ps1       # scarica gli annunci (lo stesso fa il pulsante "Aggiorna ora")
 ```
 
 Requisiti: Python 3.12, Node 20+, **Google Chrome installato**.
 
-Il primo aggiornamento richiede circa 20-40 minuti. Il geocoding degli indirizzi è limitato a 1 richiesta al secondo (policy di OpenStreetMap), e tra una pagina e l'altra ci sono pause di 2-4 s per non sovraccaricare i siti. Gli aggiornamenti successivi sono molto più rapidi, perché gli indirizzi restano in cache.
+Il primo aggiornamento richiede circa 20-40 minuti. Quelli successivi durano circa 3 minuti, perché i siti vengono letti in parallelo (un Chrome per sito). Il pulsante **Cerca novità** (`aggiorna.ps1 --rapido`) controlla solo gli annunci più recenti e impiega meno di un minuto. Il geocoding degli indirizzi è limitato a 1 richiesta al secondo (policy di OpenStreetMap), e tra una pagina e l'altra ci sono pause di 2-4 s per non sovraccaricare i siti. Gli indirizzi già cercati restano in cache.
 
 Durante l'aggiornamento si apre Chrome **fuori dallo schermo**. Serve perché Immobiliare, Casa.it, Idealista e Wikicasa bloccano i client automatici "headless" (DataDome/Cloudflare). Il profilo del browser in `data/browser-profile` conserva i cookie tra un giro e l'altro.
 

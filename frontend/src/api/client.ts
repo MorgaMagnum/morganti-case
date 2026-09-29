@@ -4,6 +4,7 @@ import type {
   ListingDetail,
   ListingSummary,
   MapMarker,
+  ScrapeMode,
   ScrapeStatus,
 } from './types'
 
@@ -34,5 +35,5 @@ export const api = {
   listing: (id: number) => request<ListingDetail>(`/api/listings/${id}`),
   facets: () => request<Facets>('/api/facets'),
   scrapeStatus: () => request<ScrapeStatus>('/api/scrape/status'),
-  startScrape: () => request<ScrapeStatus>('/api/scrape', { method: 'POST' }),
+  startScrape: (mode: ScrapeMode) => request<ScrapeStatus>(`/api/scrape?mode=${mode}`, { method: 'POST' }),
 }

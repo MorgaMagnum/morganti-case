@@ -1,0 +1,188 @@
+[
+ {
+  "name": "Zambra",
+  "place": "village",
+  "lat": 43.7018018,
+  "lng": 10.4971438
+ },
+ {
+  "name": "Navacchio",
+  "place": "village",
+  "lat": 43.6874048,
+  "lng": 10.4884805
+ },
+ {
+  "name": "Visignano",
+  "place": "village",
+  "lat": 43.6859988,
+  "lng": 10.4792358
+ },
+ {
+  "name": "San Lorenzo alle Corti",
+  "place": "village",
+  "lat": 43.6989307,
+  "lng": 10.4831224
+ },
+ {
+  "name": "Pardossi",
+  "place": "village",
+  "lat": 43.6647159,
+  "lng": 10.5730395
+ },
+ {
+  "name": "Ripoli",
+  "place": "village",
+  "lat": 43.7171602,
+  "lng": 10.456921
+ },
+ {
+  "name": "Musigliano",
+  "place": "village",
+  "lat": 43.7079744,
+  "lng": 10.4608574
+ },
+ {
+  "name": "San Frediano a Settimo",
+  "place": "village",
+  "lat": 43.6860538,
+  "lng": 10.5218751
+ },
+ {
+  "name": "Latignano",
+  "place": "village",
+  "lat": 43.6562477,
+  "lng": 10.5573277
+ },
+ {
+  "name": "Titignano",
+  "place": "village",
+  "lat": 43.6879677,
+  "lng": 10.4574691
+ },
+ {
+  "name": "Marciana",
+  "place": "village",
+  "lat": 43.6760444,
+  "lng": 10.5294353
+ },
+ {
+  "name": "San Casciano",
+  "place": "village",
+  "lat": 43.6918537,
+  "lng": 10.5146785
+ },
+ {
+  "name": "La Gronchia",
+  "place": "hamlet",
+  "lat": 43.6561098,
+  "lng": 10.5333419
+ },
+ {
+  "name": "Cascina",
+  "place": "town",
+  "lat": 43.6766744,
+  "lng": 10.5492086
+ },
+ {
+  "name": "Via di Corte",
+  "place": "neighbourhood",
+  "lat": 43.661748,
+  "lng": 10.5429377
+ },
+ {
+  "name": "Chiesanuova",
+  "place": "hamlet",
+  "lat": 43.6536833,
+  "lng": 10.5037995
+ },
+ {
+  "name": "San Benedetto",
+  "place": "village",
+  "lat": 43.6826843,
+  "lng": 10.5230578
+ },
+ {
+  "name": "Pettori",
+  "place": "village",
+  "lat": 43.7021093,
+  "lng": 10.461537
+ },
+ {
+  "name": "Santo Stefano a Macerata",
+  "place": "hamlet",
+  "lat": 43.6583411,
+  "lng": 10.5059024
+ },
+ {
+  "name": "San Prospero",
+  "place": "village",
+  "lat": 43.6831551,
+  "lng": 10.493204
+ },
+ {
+  "name": "Garzella",
+  "place": "hamlet",
+  "lat": 43.7061424,
+  "lng": 10.4521193
+ },
+ {
+  "name": "San Lorenzo a Pagnatico",
+  "place": "village",
+  "lat": 43.6765374,
+  "lng": 10.4996523
+ },
+ {
+  "name": "San Giorgio a Bibbiano",
+  "place": "village",
+  "lat": 43.6808532,
+  "lng": 10.5068337
+ },
+ {
+  "name": "San Sisto al Pino",
+  "place": "village",
+  "lat": 43.7098752,
+  "lng": 10.4515071
+ },
+ {
+  "name": "San Donato",
+  "place": "hamlet",
+  "lat": 43.6975406,
+  "lng": 10.4576655
+ },
+ {
+  "name": "Montione",
+  "place": "village",
+  "lat": 43.6910633,
+  "lng": 10.4664101
+ },
+ {
+  "name": "Laiano",
+  "place": "village",
+  "lat": 43.6933731,
+  "lng": 10.5038237
+ },
+ {
+  "name": "Casciavola",
+  "place": "village",
+  "lat": 43.6906497,
+  "lng": 10.4947323
+ },
+ {
+  "name": "Arnaccio",
+  "place": "hamlet",
+  "lat": 43.6441942,
+  "lng": 10.4491519
+ },
+ {
+  "name": "Contrada le Sedici",
+  "place": "locality",
+  "lat": 43.638891,
+  "lng": 10.4336224
+ },
+ {
+  "name": "Barca di Noce",
+  "place": "hamlet",
+  "lat": 43.688607,
+  "lng": 10.5249251
+ }
+]

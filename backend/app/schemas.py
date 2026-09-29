@@ -97,6 +97,20 @@ class Facets(BaseModel):
     last_update: Optional[datetime]
 
 
+class AppInfo(BaseModel):
+    mode: str  # completo | consultazione
+    can_scrape: bool
+
+
+class ImportSummary(BaseModel):
+    rows: int
+    new: int
+    updated: int
+    unchanged: int
+    error_count: int
+    errors: list[str]
+
+
 class RunInfo(BaseModel):
     source: str
     label: str

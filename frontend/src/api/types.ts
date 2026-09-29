@@ -86,6 +86,20 @@ export interface Facets {
   last_update: string | null
 }
 
+export interface AppInfo {
+  mode: 'completo' | 'consultazione'
+  can_scrape: boolean
+}
+
+export interface ImportSummary {
+  rows: number
+  new: number
+  updated: number
+  unchanged: number
+  error_count: number
+  errors: string[]
+}
+
 export interface RunInfo {
   source: string
   label: string

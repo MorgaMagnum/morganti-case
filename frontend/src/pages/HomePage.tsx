@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Contract, PositionCertainty } from '../api/types'
+import { ImportCsv } from '../components/DataTransfer'
 import ErrorBoundary from '../components/ErrorBoundary'
 import FilterBar from '../components/FilterBar'
 import ListingCard from '../components/ListingCard'
@@ -93,6 +94,9 @@ export default function HomePage() {
   const total = listings.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const noData = facets.data?.data?.total_active === 0
+  const info = useQuery({ queryKey: ['info'], queryFn: api.info, staleTime: Infinity })
+  const canScrape = info.data?.data?.can_scrape === true
+  const readOnly = info.data?.data?.can_scrape === false
 
   // A bookmarked page number can outlive the data: clamp it.
   useEffect(() => {
@@ -135,11 +139,21 @@ export default function HomePage() {
 
         {listings.error && <div className="notice notice-error">{(listings.error as Error).message}</div>}
 
-        {noData && (
+        {noData && canScrape && (
           <div className="notice">
-            <strong>Il database è vuoto.</strong> Premi “Aggiorna ora” in alto per scaricare gli annunci da tutti i
-            portali: il primo aggiornamento richiede qualche decina di minuti.
+            <strong>Il database è vuoto.</strong> Premi “Completo” in alto per scaricare gli annunci da tutti i
+            portali, oppure importa un file CSV esportato da un’altra copia.
           </div>
+        )}
+        {noData && readOnly && (
+          <ImportCsv dropZone className="btn btn-primary btn-lg" label="Scegli il file…">
+            <h3>Benvenuta!</h3>
+            <p>
+              Per vedere gli immobili trascina qui il file <strong>.csv</strong> che hai ricevuto, oppure premi il
+              pulsante e sceglilo. Quando ne ricevi uno più recente, importalo allo stesso modo: gli immobili si
+              aggiornano da soli.
+            </p>
+          </ImportCsv>
         )}
 
         {!listings.isLoading && total === 0 && !noData && !listings.error && (

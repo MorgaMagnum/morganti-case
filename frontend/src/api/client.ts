@@ -1,5 +1,7 @@
 import type {
+  AppInfo,
   Envelope,
+  ImportSummary,
   Facets,
   ListingDetail,
   ListingSummary,
@@ -36,4 +38,8 @@ export const api = {
   facets: () => request<Facets>('/api/facets'),
   scrapeStatus: () => request<ScrapeStatus>('/api/scrape/status'),
   startScrape: (mode: ScrapeMode) => request<ScrapeStatus>(`/api/scrape?mode=${mode}`, { method: 'POST' }),
+  info: () => request<AppInfo>('/api/info'),
+  importCsv: (file: File) =>
+    request<ImportSummary>('/api/import', { method: 'POST', body: file, headers: { 'Content-Type': 'text/csv' } }),
+  exportUrl: '/api/export.csv',
 }

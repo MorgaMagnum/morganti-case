@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config
-from app.api import images, listings, scrape
+from app.api import images, listings, scrape, transfer
 from app.db import init_db
 
 log = logging.getLogger(__name__)
@@ -54,7 +54,9 @@ async def unexpected_error(_req: Request, exc: Exception):
 
 app.include_router(listings.router)
 app.include_router(images.router)
-app.include_router(scrape.router)
+app.include_router(transfer.router)
+if config.CAN_SCRAPE:
+    app.include_router(scrape.router)
 
 config.ensure_dirs()
 app.mount("/media", StaticFiles(directory=config.MEDIA_DIR), name="media")

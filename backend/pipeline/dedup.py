@@ -7,8 +7,6 @@ prices, surfaces and pin positions, and almost always the same photos.
 from dataclasses import dataclass
 from typing import Optional
 
-import imagehash
-
 from pipeline.geo import distance_m
 from pipeline.normalize import street_key
 
@@ -49,6 +47,8 @@ class Candidate:
 
 
 def phash_distance(a: str, b: str) -> int:
+    import imagehash  # heavy (numpy/scipy): only the crawler needs it, not the read-only app
+
     return imagehash.hex_to_hash(a) - imagehash.hex_to_hash(b)
 
 

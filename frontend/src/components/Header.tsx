@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { CONTRACT_LABEL, formatDateTime, timeAgo } from '../lib/format'
+import { ExportCsv, ImportCsv } from './DataTransfer'
 
 const POLL_RUNNING_MS = 5_000
 
@@ -12,9 +13,13 @@ export default function Header() {
   const panelRef = useRef<HTMLDivElement>(null)
 
   const facets = useQuery({ queryKey: ['facets'], queryFn: api.facets })
+  const info = useQuery({ queryKey: ['info'], queryFn: api.info, staleTime: Infinity })
+  // The read-only copy ("consultazione") only imports files: no crawling from here.
+  const canScrape = info.data?.data?.can_scrape ?? false
   const status = useQuery({
     queryKey: ['scrape-status'],
     queryFn: api.scrapeStatus,
+    enabled: canScrape,
     refetchInterval: (q) => (q.state.data?.data?.running ? POLL_RUNNING_MS : false),
   })
   const running = status.data?.data?.running ?? false
@@ -63,35 +68,49 @@ export default function Header() {
       </Link>
 
       <div className="topbar-status" ref={panelRef}>
-        <button type="button" className="status-pill" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          <span className={`dot ${running ? 'dot-running' : failed ? 'dot-warn' : 'dot-ok'}`} aria-hidden />
-          {running
-            ? 'Aggiornamento in corso…'
-            : lastUpdate
-              ? `Aggiornato ${timeAgo(lastUpdate)}`
-              : 'Mai aggiornato'}
-        </button>
-        <div className="update-buttons" role="group" aria-label="Aggiorna gli annunci">
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={running || start.isPending}
-            onClick={() => start.mutate('rapido')}
-            title="Solo gli annunci nuovi, circa 1 minuto"
-          >
-            {running ? 'In corso…' : 'Cerca novità'}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={running || start.isPending}
-            onClick={() => start.mutate('completo')}
-            title="Rilegge tutti gli annunci: rileva anche prezzi cambiati e annunci rimossi. Alcuni minuti."
-          >
-            Completo
-          </button>
+        {canScrape ? (
+          <>
+            <button type="button" className="status-pill" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+              <span className={`dot ${running ? 'dot-running' : failed ? 'dot-warn' : 'dot-ok'}`} aria-hidden />
+              {running
+                ? 'Aggiornamento in corso…'
+                : lastUpdate
+                  ? `Aggiornato ${timeAgo(lastUpdate)}`
+                  : 'Mai aggiornato'}
+            </button>
+            <div className="update-buttons" role="group" aria-label="Aggiorna gli annunci">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={running || start.isPending}
+                onClick={() => start.mutate('rapido')}
+                title="Solo gli annunci nuovi, circa 1 minuto"
+              >
+                {running ? 'In corso…' : 'Cerca novità'}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={running || start.isPending}
+                onClick={() => start.mutate('completo')}
+                title="Rilegge tutti gli annunci: rileva anche prezzi cambiati e annunci rimossi. Alcuni minuti."
+              >
+                Completo
+              </button>
+            </div>
+          </>
+        ) : (
+          lastUpdate && (
+            <span className="status-pill is-static" title={formatDateTime(lastUpdate)}>
+              <span className="dot dot-ok" aria-hidden />
+              Dati di {timeAgo(lastUpdate)}
+            </span>
+          )
+        )}
+        <div className="data-buttons" role="group" aria-label="Scambio dati">
+          {canScrape && <ExportCsv />}
+          {info.isSuccess && <ImportCsv className={canScrape ? 'btn' : 'btn btn-primary'} label={canScrape ? 'Importa CSV' : 'Importa file'} />}
         </div>
-
         {open && (
           <div className="status-panel" role="dialog" aria-label="Stato delle fonti">
             <h3>Stato delle fonti</h3>

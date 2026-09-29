@@ -28,6 +28,11 @@ MAX_PAGES_PER_SEARCH = 60
 MISSED_RUNS_BEFORE_INACTIVE = 2
 BROWSER_HEADLESS = os.environ.get("CC_BROWSER_HEADLESS", "0") == "1"
 
+# "consultazione": read-only copy fed by CSV imports (no crawling, no browser needed).
+APP_MODE = "consultazione" if os.environ.get("CC_MODE", "").lower() == "consultazione" else "completo"
+CAN_SCRAPE = APP_MODE == "completo"
+MAX_IMPORT_BYTES = 50 * 1024 * 1024
+
 
 def ensure_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)

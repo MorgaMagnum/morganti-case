@@ -10,7 +10,6 @@ from typing import Iterable, Optional
 from urllib.parse import urlsplit
 
 import httpx
-import imagehash
 from PIL import Image, UnidentifiedImageError
 
 from app import config
@@ -73,6 +72,8 @@ def open_image(data: bytes) -> Optional[Image.Image]:
 
 
 def phash_hex(img: Image.Image) -> str:
+    import imagehash  # heavy (numpy/scipy): only the crawler needs it, not the read-only app
+
     return str(imagehash.phash(img))
 
 

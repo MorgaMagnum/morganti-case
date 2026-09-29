@@ -24,6 +24,20 @@ Durante l'aggiornamento si apre Chrome **fuori dallo schermo**. Serve perché Im
 
 Per un aggiornamento automatico notturno, il comando `schtasks` è descritto in `aggiorna.ps1`.
 
+## Condividere i dati (versione consultazione)
+
+Chi vuole solo guardare gli immobili, senza cercarli sui portali, usa la **versione consultazione**. Sul suo PC non va installato niente.
+
+1. `.\crea-versione-consultazione.ps1` crea `consegna\Cerca Case - Consultazione.zip`. Contiene un Python portatile, l'app, le istruzioni (`LEGGIMI.txt`) e l'export di oggi. Va mandato una volta sola.
+2. Chi lo riceve estrae lo zip e fa doppio clic su **Apri Cerca Case**. Il browser si apre da solo, già con tutti gli immobili, e sul Desktop compare l'icona "Cerca Case".
+3. Per gli aggiornamenti premi **Esporta CSV** in alto e mandale il file (circa 4 MB, va bene WhatsApp). Lei lo scarica e riapre Cerca Case: si aggiorna da solo.
+
+   All'avvio la versione consultazione importa il file `cerca-case*.csv` più recente che trova nella sua cartella, in Download o sul Desktop, se non l'ha già importato. Il pulsante **Importa file** resta come alternativa.
+
+L'import unisce i dati e non sostituisce niente. Ogni immobile viene riconosciuto dai suoi annunci (portale + id) e i dati più recenti vincono. Importare un file vecchio quindi non fa tornare indietro nulla, e non si cancella mai niente. Anche la tua copia ha **Importa CSV**, con le stesse regole.
+
+Il CSV usa il separatore `;` e UTF-8 con BOM, così si apre bene in Excel. Gli annunci collegati e le foto sono nelle colonne `annunci` e `foto` in formato JSON. Un file aperto e risalvato con Excel può non essere più importabile. La versione consultazione (`CC_MODE=consultazione`, porta 8010) non ha i pulsanti di ricerca e non espone le API di aggiornamento.
+
 ## Come funziona
 
 ```

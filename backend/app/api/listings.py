@@ -190,7 +190,7 @@ def facets(session: SessionDep):
     ).all()
     last_update = session.exec(
         select(func.max(ScrapeRun.finished_at)).where(ScrapeRun.status == "ok")
-    ).one()
+    ).one() or session.exec(select(func.max(Listing.last_seen_at))).one()  # read-only copy: no crawls
     total = session.exec(select(func.count()).where(Listing.is_active == True)).one()  # noqa: E712
     certain = session.exec(
         select(func.count()).where(

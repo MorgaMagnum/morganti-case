@@ -53,6 +53,29 @@ def _near_identical(a: Candidate, b: Candidate) -> bool:
     )
 
 
+def replace_images(session: Session, listing_id: int, urls: Iterable[str]) -> None:
+    """Make the gallery match `urls`, keeping rows (ids and cached files) that stay."""
+    wanted = list(dict.fromkeys(urls))
+    existing = {
+        img.source_url: img
+        for img in session.exec(select(ListingImage).where(ListingImage.listing_id == listing_id)).all()
+    }
+    stale_files = []
+    for url, img in existing.items():
+        if url not in wanted:
+            if img.local_path:
+                stale_files.append(config.MEDIA_DIR / img.local_path)
+            session.delete(img)
+    for pos, url in enumerate(wanted):
+        img = existing.get(url) or ListingImage(listing_id=listing_id, source_url=url)
+        img.position = pos
+        session.add(img)
+    session.flush()
+    # Files are removed only after the rows are gone, and a failure here is harmless.
+    for path in stale_files:
+        path.unlink(missing_ok=True)
+
+
 class ListingStore:
     def __init__(
         self,
@@ -335,26 +358,7 @@ class ListingStore:
         return len(self._s.exec(select(ListingImage.id).where(ListingImage.listing_id == listing_id)).all())
 
     def _replace_images(self, listing_id: int, urls: tuple[str, ...]) -> None:
-        """Make the gallery match `urls`, keeping rows (ids and cached files) that stay."""
-        wanted = list(dict.fromkeys(urls))
-        existing = {
-            img.source_url: img
-            for img in self._s.exec(select(ListingImage).where(ListingImage.listing_id == listing_id)).all()
-        }
-        stale_files = []
-        for url, img in existing.items():
-            if url not in wanted:
-                if img.local_path:
-                    stale_files.append(config.MEDIA_DIR / img.local_path)
-                self._s.delete(img)
-        for pos, url in enumerate(wanted):
-            img = existing.get(url) or ListingImage(listing_id=listing_id, source_url=url)
-            img.position = pos
-            self._s.add(img)
-        self._s.flush()
-        # Files are removed only after the rows are gone, and a failure here is harmless.
-        for path in stale_files:
-            path.unlink(missing_ok=True)
+        replace_images(self._s, listing_id, urls)
 
     def _save_cover(self, listing: Listing, img) -> None:
         rel = cover_relpath(listing.id)

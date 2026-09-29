@@ -172,3 +172,54 @@ class TestIdealista:
         s = IdealistaScraper()
         assert s.page_url("vendita", 1) == "https://www.idealista.it/vendita-case/cascina-pisa/"
         assert s.page_url("affitto", 4) == "https://www.idealista.it/affitto-case/cascina-pisa/lista-4.htm"
+
+
+class TestAdvertiserType:
+    """Private owners vs agencies. Private-side shapes copied from live ads (Sept 2026)."""
+
+    def test_fixture_pages_mark_agencies_as_not_private(self):
+        for scraper, fixture in [
+            (ImmobiliareScraper(), "immobiliare_vendita.html"),
+            (CasaItScraper(), "casa_vendita.html"),
+            (WikicasaScraper(), "wikicasa_vendita.html"),
+            (IdealistaScraper(), "idealista_vendita.html"),
+        ]:
+            listings = scraper.parse(load(fixture), "vendita").listings
+            assert all(x.is_private is False for x in listings), scraper.name
+
+    def test_subito_distinguishes_owners_from_companies(self):
+        listings = SubitoScraper().parse(load("subito_vendita.html"), "vendita").listings
+        private = [x for x in listings if x.is_private]
+        assert private and all(x.agency_name == "Privato" for x in private)
+        assert all(x.is_private is False for x in listings if x.agency_name != "Privato")
+
+    def test_immobiliare_owner_has_only_a_user_supervisor(self):
+        result = {"realEstate": {"id": 127004995, "title": "Casa", "advertiser": {
+            "supervisor": {"type": "user", "label": "privato", "phones": []}, "hasCallNumbers": True}}}
+        raw = ImmobiliareScraper()._parse_result(result, "vendita")
+        assert (raw.is_private, raw.agency_name) == (True, "Privato")
+
+    def test_immobiliare_without_advertiser_is_unknown(self):
+        raw = ImmobiliareScraper()._parse_result({"realEstate": {"id": 1, "title": "Casa"}}, "vendita")
+        assert (raw.is_private, raw.agency_name) == (None, None)
+
+    def test_casa_it_private_publisher(self):
+        item = {"id": 54702349, "title": {"main": "Casa"}, "publisher": {"publisherType": "Private"}}
+        raw = CasaItScraper()._parse_item(item, "vendita")
+        assert (raw.is_private, raw.agency_name) == (True, "Privato")
+
+    def test_wikicasa_ad_without_agency_is_private(self):
+        item = {"realEstateID": 29220543, "title": "Casa", "agency": None}
+        raw = WikicasaScraper()._parse_item(item, "vendita")
+        assert (raw.is_private, raw.agency_name) == (True, "Privato")
+
+    def test_idealista_uses_the_professional_flag_not_the_logo(self):
+        def card(flag):
+            attr = f' data-is-professional-ad="{flag}"' if flag else ""
+            html = (f'<h1>3 case</h1><article class="item" data-element-id="9"{attr}>'
+                    '<a class="item-link" href="/immobile/9/" title="Casa in Via Roma, Cascina">x</a></article>')
+            return IdealistaScraper().parse(html, "vendita").listings[0]
+
+        assert (card("true").is_private, card("true").agency_name) == (False, None)  # agency without logo
+        assert (card("false").is_private, card("false").agency_name) == (True, "Privato")
+        assert card(None).is_private is None

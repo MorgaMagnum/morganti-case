@@ -1,11 +1,19 @@
 """immobiliare.it: results live in the Next.js `__NEXT_DATA__` react-query cache."""
 
-from scrapers.base import Contract, ParsedPage, RawListing, Scraper, ScraperError
+from scrapers.base import Contract, ParsedPage, RawListing, Scraper, ScraperError, advertiser_name
 from scrapers.parsing import clean_text, clean_title, dig, script_json, to_float, to_int
 
 BASE = "https://www.immobiliare.it"
 _PATHS = {"vendita": "vendita-case", "affitto": "affitto-case"}
 _PHOTO_URL = "https://pwm.im-cdn.it/image/{id}/xxl.jpg"
+
+
+def _is_private(advertiser: dict) -> bool | None:
+    """Agencies have an "agency" record; owners only a supervisor of type "user"."""
+    if advertiser.get("agency"):
+        return False
+    supervisor_type = dig(advertiser, "supervisor", "type")
+    return supervisor_type == "user" if supervisor_type else None
 
 
 class ImmobiliareScraper(Scraper):
@@ -45,8 +53,10 @@ class ImmobiliareScraper(Scraper):
         location = props.get("location") or {}
         price = estate.get("price") or props.get("price") or {}
         photos = dig(props, "multimedia", "photos", default=[])
-        agency = dig(estate, "advertiser", "agency", "displayName") or dig(
-            estate, "advertiser", "supervisor", "displayName"
+        advertiser = estate.get("advertiser") or {}
+        is_private = _is_private(advertiser)
+        agency = dig(advertiser, "agency", "displayName") or (
+            None if is_private else dig(advertiser, "supervisor", "displayName")
         )
         return RawListing(
             source=self.name,
@@ -67,6 +77,7 @@ class ImmobiliareScraper(Scraper):
             lat=to_float(location.get("latitude")),
             lng=to_float(location.get("longitude")),
             coords_exact=location.get("marker") == "marker" and bool(location.get("address")),
-            agency_name=agency or "Privato",
+            agency_name=advertiser_name(agency, is_private),
+            is_private=is_private,
             image_urls=tuple(_PHOTO_URL.format(id=p["id"]) for p in photos if p.get("id")),
         )

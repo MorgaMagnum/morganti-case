@@ -2,6 +2,7 @@ export type Contract = 'vendita' | 'affitto'
 export type GeoPrecision = 'esatta' | 'via' | 'approssimativa' | 'frazione' | 'comune'
 export type ScrapeMode = 'completo' | 'rapido'
 export type PositionCertainty = 'certa' | 'incerta'
+export type Advertiser = 'privato' | 'agenzia'
 export type SortKey = 'published_desc' | 'published_asc' | 'price_asc' | 'price_desc' | 'm2_desc' | 'price_m2_asc'
 
 export interface Envelope<T> {
@@ -28,6 +29,8 @@ export interface ListingSummary {
   geo_precision: GeoPrecision
   position_certain: boolean
   agency_name: string | null
+  /** At least one active ad was published by the owner, not an agency. */
+  has_private: boolean
   cover_url: string | null
   sources: string[]
   published_at: string
@@ -41,6 +44,8 @@ export interface SourceRef {
   url: string
   price: number | null
   agency_name: string | null
+  /** null when the portal does not say who published the ad. */
+  is_private: boolean | null
   last_seen_at: string
   is_active: boolean
 }
@@ -76,6 +81,7 @@ export interface Facets {
   sources: FacetCount[]
   contracts: FacetCount[]
   positions: FacetCount[]
+  advertisers: FacetCount[]
   total_active: number
   last_update: string | null
 }

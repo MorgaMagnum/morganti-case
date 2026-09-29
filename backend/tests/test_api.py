@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel, delete
+from sqlmodel import Session, SQLModel, delete, select
 
 from app.db import engine, init_db
 from app.main import app
@@ -204,3 +204,33 @@ def test_migration_adds_mode_column_to_old_databases(tmp_path):
         _migrate(conn)
         _migrate(conn)  # idempotent
         assert conn.exec_driver_sql("SELECT mode FROM scraperun").scalar() == "completo"
+
+
+def _mark_private(title: str) -> None:
+    """The listing gets a second, owner-published ad on subito (like a cross-portal merge)."""
+    with Session(engine) as s:
+        listing = s.exec(select(Listing).where(Listing.title == title)).one()
+        s.add(SourceLink(listing_id=listing.id, source="subito", external_id=f"p{listing.id}",
+                         url="https://example.org/p", agency_name="Privato", is_private=True))
+        s.commit()
+
+
+def test_filter_by_advertiser(client):
+    _mark_private("Bilocale centro")
+    assert titles(client.get("/api/listings", params={"advertiser": "privato"})) == ["Bilocale centro"]
+    agency = titles(client.get("/api/listings", params={"advertiser": "agenzia"}))
+    assert len(agency) == 3 and "Bilocale centro" not in agency
+    markers = client.get("/api/listings/markers", params={"advertiser": "privato"}).json()["data"]
+    assert len(markers) == 1
+
+
+def test_private_flags_on_cards_detail_and_facets(client):
+    _mark_private("Bilocale centro")
+    cards = {x["title"]: x for x in client.get("/api/listings").json()["data"]}
+    assert cards["Bilocale centro"]["has_private"] is True
+    assert cards["Villa con piscina"]["has_private"] is False
+    detail = client.get(f"/api/listings/{cards['Bilocale centro']['id']}").json()["data"]
+    assert sorted((l["source"], l["is_private"]) for l in detail["links"]) == [
+        ("immobiliare", None), ("subito", True)]
+    facets = client.get("/api/facets").json()["data"]
+    assert facets["advertisers"] == [{"value": "privato", "count": 1}, {"value": "agenzia", "count": 3}]

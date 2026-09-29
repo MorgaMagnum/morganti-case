@@ -1,6 +1,6 @@
 """subito.it: server-rendered Next.js; plain HTTP works."""
 
-from scrapers.base import Contract, ParsedPage, RawListing, Scraper, ScraperError
+from scrapers.base import Contract, ParsedPage, RawListing, Scraper, ScraperError, advertiser_name
 from scrapers.parsing import clean_text, clean_title, dig, parse_datetime, script_json, to_float, to_int
 
 BASE = "https://www.subito.it"
@@ -51,6 +51,8 @@ class SubitoScraper(Scraper):
             return None
         features = raw.get("features") or {}
         advertiser = raw.get("advertiser") or {}
+        is_company = advertiser.get("company")
+        is_private = None if is_company is None else not is_company
         images = raw.get("images") or []
         return RawListing(
             source=self.name,
@@ -70,6 +72,9 @@ class SubitoScraper(Scraper):
             lng=to_float(dig(raw, "geo", "map", "longitude")),
             coords_exact=bool(dig(raw, "geo", "map", "showPin")),
             published_at=parse_datetime(raw.get("date")),
-            agency_name=(advertiser.get("shopName") or advertiser.get("name")) if advertiser.get("company") else "Privato",
+            agency_name=advertiser_name(
+                (advertiser.get("shopName") or advertiser.get("name")) if is_company else None, is_private
+            ),
+            is_private=is_private,
             image_urls=tuple(img["cdnBaseUrl"] + IMAGE_RULE for img in images if img.get("cdnBaseUrl")),
         )

@@ -3,7 +3,7 @@
 import json
 import re
 
-from scrapers.base import Contract, ParsedPage, RawListing, Scraper, ScraperError
+from scrapers.base import Contract, ParsedPage, RawListing, Scraper, ScraperError, advertiser_name
 from scrapers.parsing import clean_text, clean_title, dig, to_float, to_int
 
 BASE = "https://www.casa.it"
@@ -52,6 +52,8 @@ class CasaItScraper(Scraper):
         title = dig(raw, "title", "main") or "Immobile"
         extra = dig(raw, "title", "additional", default=[])
         media = dig(raw, "media", "items", default=[])
+        publisher_type = dig(raw, "publisher", "publisherType")
+        is_private = (publisher_type == "Private") if publisher_type else None
         return RawListing(
             source=self.name,
             external_id=str(raw["id"]),
@@ -71,6 +73,7 @@ class CasaItScraper(Scraper):
             lat=to_float(geo.get("lat")),
             lng=to_float(geo.get("lon")),
             coords_exact=geo.get("geo_visibility_level") == 1 and bool(geo.get("has_street")),
-            agency_name=dig(raw, "publisher", "publisherName") or "Privato",
+            agency_name=advertiser_name(dig(raw, "publisher", "publisherName"), is_private),
+            is_private=is_private,
             image_urls=tuple(IMAGE_BASE + m["uri"] for m in media if m.get("uri")),
         )

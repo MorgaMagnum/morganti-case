@@ -50,6 +50,11 @@ function ListingCard({ listing: l, onHover }: Props) {
         <div className="card-type">
           {capitalize(l.property_type)}
           {l.frazione && <> · {l.frazione}</>}
+          {l.has_private && (
+            <span className="badge badge-private" title="Pubblicato direttamente dal proprietario">
+              Privato
+            </span>
+          )}
         </div>
         <h3 className="card-title">{l.title}</h3>
         {facts.length > 0 && <div className="card-facts">{facts.join(' · ')}</div>}

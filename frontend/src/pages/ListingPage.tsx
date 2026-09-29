@@ -68,6 +68,9 @@ export default function ListingPage() {
     ['Indirizzo', l.address],
   ]
 
+  const privateLinks = l.links.filter((s) => s.is_active && s.is_private)
+  const ownerAlsoAdvertises = privateLinks.length > 0 && l.links.some((s) => s.is_active && !s.is_private)
+
   return (
     <main className="detail">
       <button type="button" className="link-btn back" onClick={back}>
@@ -79,6 +82,7 @@ export default function ListingPage() {
           <div className="detail-badges">
             <span className={`badge badge-${l.contract}`}>{CONTRACT_LABEL[l.contract]}</span>
             <span className="badge badge-neutral">{capitalize(l.property_type)}</span>
+            {l.has_private && <span className="badge badge-private">Privato</span>}
             {!l.is_active && <span className="badge badge-gone">Non più online</span>}
           </div>
           <h1>{l.title}</h1>
@@ -121,11 +125,21 @@ export default function ListingPage() {
         <aside className="detail-side">
           <section className="panel">
             <h2>{l.links.length > 1 ? `Pubblicato su ${l.links.length} siti` : 'Annuncio originale'}</h2>
+            {ownerAlsoAdvertises && (
+              <p className="owner-note">
+                Il proprietario pubblica questo immobile anche direttamente su{' '}
+                <strong>{privateLinks.map((s) => s.label).join(', ')}</strong>: puoi contattarlo da quell’annuncio,
+                senza passare dall’agenzia.
+              </p>
+            )}
             <ul className="links">
               {l.links.map((s) => (
                 <li key={s.url} className={s.is_active ? '' : 'is-inactive'}>
                   <div>
-                    <strong>{s.label}</strong>
+                    <strong>
+                      {s.label}
+                      {s.is_private && <span className="badge badge-private">Privato</span>}
+                    </strong>
                     <span className="muted">
                       {s.agency_name ?? 'Inserzionista non indicato'}
                       {s.price != null && ` · ${formatPrice(s.price, l.contract)}`}

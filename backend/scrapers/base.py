@@ -37,7 +37,13 @@ class RawListing:
     coords_exact: bool = False  # True when the site pins the actual address
     published_at: Optional[datetime] = None
     agency_name: Optional[str] = None
+    # True: the owner advertises directly; False: an agency or builder; None: the site does not say.
+    is_private: Optional[bool] = None
     image_urls: tuple[str, ...] = field(default_factory=tuple)
+
+
+def advertiser_name(name: Optional[str], is_private: Optional[bool]) -> Optional[str]:
+    return name or ("Privato" if is_private else None)
 
 
 @dataclass(frozen=True)

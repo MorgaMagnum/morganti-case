@@ -25,6 +25,7 @@ class SourceRef(BaseModel):
     url: str
     price: Optional[int]
     agency_name: Optional[str]
+    is_private: Optional[bool]
     last_seen_at: datetime
     is_active: bool
 
@@ -46,6 +47,7 @@ class ListingSummary(BaseModel):
     geo_precision: str
     position_certain: bool
     agency_name: Optional[str]
+    has_private: bool  # at least one active ad published by the owner
     cover_url: Optional[str]
     sources: list[str]
     published_at: datetime  # site date if known, else first time we saw it
@@ -90,6 +92,7 @@ class Facets(BaseModel):
     sources: list[FacetCount]
     contracts: list[FacetCount]
     positions: list[FacetCount]
+    advertisers: list[FacetCount]
     total_active: int
     last_update: Optional[datetime]
 

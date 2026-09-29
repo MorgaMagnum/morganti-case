@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from app import config
-from app.api.filters import ListingFilters, SortKey, order_clause
+from app.api.filters import ListingFilters, SortKey, order_clause, private_listing_ids
 from app.db import get_session
 from app.models import Listing, ListingImage, ScrapeRun, SourceLink
 from pipeline.geo import CERTAIN_PRECISIONS
@@ -61,7 +61,13 @@ def _sources(session: Session, ids: list[int]) -> dict[int, list[str]]:
     return out
 
 
-def _summary(listing: Listing, cover: Optional[str], sources: list[str]) -> dict:
+def _private(session: Session, ids: list[int]) -> set[int]:
+    if not ids:
+        return set()
+    return set(session.exec(private_listing_ids().where(col(SourceLink.listing_id).in_(ids))).all())
+
+
+def _summary(listing: Listing, cover: Optional[str], sources: list[str], has_private: bool) -> dict:
     price_m2 = round(listing.price / listing.surface_m2) if listing.price and listing.surface_m2 else None
     return dict(
         id=listing.id,
@@ -80,6 +86,7 @@ def _summary(listing: Listing, cover: Optional[str], sources: list[str]) -> dict
         geo_precision=listing.geo_precision,
         position_certain=listing.geo_precision in CERTAIN_PRECISIONS,
         agency_name=listing.agency_name,
+        has_private=has_private,
         cover_url=cover,
         sources=sorted(sources),
         published_at=listing.published_at or listing.first_seen_at,
@@ -100,8 +107,9 @@ def list_listings(
     total = session.exec(select(func.count()).select_from(base.subquery())).one()
     rows = session.exec(base.order_by(*order_clause(sort)).offset((page - 1) * size).limit(size)).all()
     covers = _covers(session, rows)
-    sources = _sources(session, [r.id for r in rows])
-    data = [ListingSummary(**_summary(r, covers.get(r.id), sources.get(r.id, []))) for r in rows]
+    ids = [r.id for r in rows]
+    sources, private = _sources(session, ids), _private(session, ids)
+    data = [ListingSummary(**_summary(r, covers.get(r.id), sources.get(r.id, []), r.id in private)) for r in rows]
     return Envelope(data=data, meta=Meta(total=total, page=page, size=size))
 
 
@@ -133,7 +141,9 @@ def get_listing(listing_id: int, session: SessionDep):
     ).all()
     cover = _covers(session, [listing]).get(listing.id)
     detail = ListingDetail(
-        **_summary(listing, cover, [l.source for l in links if l.is_active]),
+        **_summary(
+            listing, cover, [l.source for l in links if l.is_active], any(l.is_private and l.is_active for l in links)
+        ),
         description=listing.description,
         floor=listing.floor,
         first_seen_at=listing.first_seen_at,
@@ -146,6 +156,7 @@ def get_listing(listing_id: int, session: SessionDep):
                 url=l.url,
                 price=l.price,
                 agency_name=l.agency_name,
+                is_private=l.is_private,
                 last_seen_at=l.last_seen_at,
                 is_active=l.is_active,
             )
@@ -186,6 +197,11 @@ def facets(session: SessionDep):
             Listing.is_active == True, col(Listing.geo_precision).in_(CERTAIN_PRECISIONS)  # noqa: E712
         )
     ).one()
+    private = session.exec(
+        select(func.count()).where(
+            Listing.is_active == True, col(Listing.id).in_(private_listing_ids())  # noqa: E712
+        )
+    ).one()
     return Envelope(
         data=Facets(
             property_types=_facet(session, Listing.property_type),
@@ -194,6 +210,10 @@ def facets(session: SessionDep):
             positions=[
                 FacetCount(value="certa", count=certain),
                 FacetCount(value="incerta", count=total - certain),
+            ],
+            advertisers=[
+                FacetCount(value="privato", count=private),
+                FacetCount(value="agenzia", count=total - private),
             ],
             sources=[FacetCount(value=s, count=c) for s, c in sorted(source_rows, key=lambda r: -r[1])],
             total_active=total,

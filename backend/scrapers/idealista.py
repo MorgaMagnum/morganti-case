@@ -5,7 +5,7 @@ import re
 
 from selectolax.parser import HTMLParser, Node
 
-from scrapers.base import Contract, ParsedPage, RawListing, Scraper, ScraperError
+from scrapers.base import Contract, ParsedPage, RawListing, Scraper, ScraperError, advertiser_name
 from scrapers.parsing import clean_text, clean_title, to_int
 
 BASE = "https://www.idealista.it"
@@ -75,6 +75,9 @@ class IdealistaScraper(Scraper):
         price_node = card.css_first(".item-price")
         description = card.css_first(".item-description")
         logo = card.css_first(".logo-branding img")
+        # An agency without a logo is still an agency: the flag is the reliable signal.
+        professional = card.attributes.get("data-is-professional-ad")
+        is_private = None if professional is None else professional == "false"
         images = []
         for img in card.css(".item-gallery img"):
             src = img.attributes.get("src") or ""
@@ -95,6 +98,7 @@ class IdealistaScraper(Scraper):
             address=address,
             zone=zone,
             city=city,
-            agency_name=(logo.attributes.get("alt") if logo else None) or "Privato",
+            agency_name=advertiser_name(logo.attributes.get("alt") if logo else None, is_private),
+            is_private=is_private,
             image_urls=tuple(dict.fromkeys(images)),
         )

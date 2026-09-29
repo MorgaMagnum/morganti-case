@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { Contract, PositionCertainty, SortKey } from '../api/types'
+import type { Advertiser, Contract, PositionCertainty, SortKey } from '../api/types'
 
 export interface Filters {
   contract: Contract | null
@@ -8,6 +8,7 @@ export interface Filters {
   frazioni: string[]
   sources: string[]
   position: PositionCertainty | null
+  advertiser: Advertiser | null
   priceMin: number | null
   priceMax: number | null
   m2Min: number | null
@@ -32,12 +33,14 @@ function parse(params: URLSearchParams): Filters {
   const contract = params.get('contract')
   const sort = params.get('sort') as SortKey | null
   const position = params.get('position')
+  const advertiser = params.get('advertiser')
   return {
     contract: contract === 'vendita' || contract === 'affitto' ? contract : null,
     types: list(params.get('types')),
     frazioni: list(params.get('frazioni')),
     sources: list(params.get('sources')),
     position: position === 'certa' || position === 'incerta' ? position : null,
+    advertiser: advertiser === 'privato' || advertiser === 'agenzia' ? advertiser : null,
     priceMin: num(params.get('price_min')),
     priceMax: num(params.get('price_max')),
     m2Min: num(params.get('m2_min')),
@@ -57,6 +60,7 @@ function serialize(f: Filters): URLSearchParams {
   if (f.frazioni.length) p.set('frazioni', f.frazioni.join(','))
   if (f.sources.length) p.set('sources', f.sources.join(','))
   if (f.position) p.set('position', f.position)
+  if (f.advertiser) p.set('advertiser', f.advertiser)
   if (f.priceMin != null) p.set('price_min', String(f.priceMin))
   if (f.priceMax != null) p.set('price_max', String(f.priceMax))
   if (f.m2Min != null) p.set('m2_min', String(f.m2Min))
@@ -77,6 +81,7 @@ export function apiFilterQuery(f: Filters, bbox: string | null): URLSearchParams
   if (f.frazioni.length) p.set('frazioni', f.frazioni.join(','))
   if (f.sources.length) p.set('sources', f.sources.join(','))
   if (f.position) p.set('position', f.position)
+  if (f.advertiser) p.set('advertiser', f.advertiser)
   if (f.priceMin != null) p.set('price_min', String(f.priceMin))
   if (f.priceMax != null) p.set('price_max', String(f.priceMax))
   if (f.m2Min != null) p.set('m2_min', String(f.m2Min))
@@ -114,6 +119,7 @@ export function useFilters() {
     filters.frazioni.length +
     filters.sources.length +
     (filters.position ? 1 : 0) +
+    (filters.advertiser ? 1 : 0) +
     (filters.priceMin != null ? 1 : 0) +
     (filters.priceMax != null ? 1 : 0) +
     (filters.m2Min != null ? 1 : 0) +

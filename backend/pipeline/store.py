@@ -186,7 +186,13 @@ class ListingStore:
         link.url = raw.url
         if raw.price is not None:  # a missing price is more often a glitch than a change
             link.price = raw.price
-        link.agency_name = raw.agency_name or link.agency_name
+        old_agency = link.agency_name
+        if raw.is_private is not None:
+            # A known advertiser type also settles the name (older runs labelled
+            # logo-less idealista agencies "Privato").
+            link.is_private, link.agency_name = raw.is_private, raw.agency_name
+        else:
+            link.agency_name = raw.agency_name or link.agency_name
         link.last_seen_at = now
         link.missed_runs = 0
         link.is_active = True
@@ -195,6 +201,8 @@ class ListingStore:
         if listing is None:
             return
         listing.last_seen_at = now
+        if listing.agency_name == old_agency:
+            listing.agency_name = link.agency_name
         if raw.description and len(raw.description) > len(listing.description or ""):
             listing.description = raw.description
         self._s.flush()
@@ -307,6 +315,7 @@ class ListingStore:
                 external_id=raw.external_id,
                 url=raw.url,
                 agency_name=raw.agency_name,
+                is_private=raw.is_private,
                 price=raw.price,
                 first_seen_at=now,
                 last_seen_at=now,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Contract, Facets, PositionCertainty, SortKey } from '../api/types'
+import type { Advertiser, Contract, Facets, PositionCertainty, SortKey } from '../api/types'
 import type { Filters } from '../hooks/useFilters'
 import { capitalize } from '../lib/format'
 import { SOURCE_LABELS } from '../lib/sources'
@@ -126,6 +126,10 @@ export default function FilterBar({ filters, facets, activeCount, onChange, onRe
   }, [q, filters.q, onChange])
 
   const setContract = (c: Contract | null) => onChange({ contract: c })
+  const advertiserCount = (value: Advertiser) => {
+    const count = facets?.advertisers.find((f) => f.value === value)?.count
+    return count == null ? '' : ` (${count})`
+  }
 
   return (
     <section className="filterbar" aria-label="Filtri di ricerca">
@@ -207,6 +211,19 @@ export default function FilterBar({ filters, facets, activeCount, onChange, onRe
           <option value="">Tutte</option>
           <option value="certa">Solo posizione certa</option>
           <option value="incerta">Solo posizione incerta</option>
+        </select>
+      </label>
+
+      <label className="field">
+        <span>Inserzionista</span>
+        <select
+          className={filters.advertiser ? 'is-set' : ''}
+          value={filters.advertiser ?? ''}
+          onChange={(e) => onChange({ advertiser: (e.target.value || null) as Advertiser | null })}
+        >
+          <option value="">Tutti</option>
+          <option value="privato">Solo privati{advertiserCount('privato')}</option>
+          <option value="agenzia">Solo agenzie{advertiserCount('agenzia')}</option>
         </select>
       </label>
 

@@ -215,3 +215,25 @@ def test_reappearing_ad_is_reactivated(store, session):
     store.finalize_missing("immobiliare", "vendita", seen=set())
     store.process_page([raw()])
     assert session.exec(select(Listing)).one().is_active
+
+
+def test_advertiser_type_is_stored_on_the_link(store, session):
+    store.process_page([raw(agency_name="Privato", is_private=True)])
+    link = session.exec(select(SourceLink)).one()
+    assert link.is_private is True
+
+
+def test_known_advertiser_type_corrects_an_old_private_label(store, session):
+    # Older runs called every logo-less agency "Privato".
+    store.process_page([raw(agency_name="Privato")])
+    store.process_page([raw(agency_name=None, is_private=False)])
+    link = session.exec(select(SourceLink)).one()
+    listing = session.exec(select(Listing)).one()
+    assert (link.is_private, link.agency_name, listing.agency_name) == (False, None, None)
+
+
+def test_unknown_advertiser_type_keeps_what_we_knew(store, session):
+    store.process_page([raw(agency_name="Privato", is_private=True)])
+    store.process_page([raw(agency_name=None, is_private=None)])
+    link = session.exec(select(SourceLink)).one()
+    assert (link.is_private, link.agency_name) == (True, "Privato")

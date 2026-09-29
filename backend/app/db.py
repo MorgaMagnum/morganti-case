@@ -45,6 +45,7 @@ def _begin_immediate(conn) -> None:
 # create_all() only creates missing tables, so existing databases get them here.
 _ADDED_COLUMNS = [
     ("scraperun", "mode", "VARCHAR NOT NULL DEFAULT 'completo'"),
+    ("sourcelink", "is_private", "BOOLEAN"),
 ]
 
 

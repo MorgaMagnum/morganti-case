@@ -59,6 +59,8 @@ class WikicasaScraper(Scraper):
         title = clean_title(raw.get("title")) or "Immobile"
         price = raw.get("price") or (raw.get("priceSale") if contract == "vendita" else raw.get("priceRent"))
         agency = raw.get("agency") or {}
+        # Private owners have no agency record on the search results.
+        agency_name = agency.get("franchiseName") or agency.get("name") or None
         images = sorted(raw.get("reImages") or [], key=lambda i: i.get("position") or 0)
         return RawListing(
             source=self.name,
@@ -75,6 +77,7 @@ class WikicasaScraper(Scraper):
             address=clean_text(raw.get("address")),
             city=raw.get("cityName"),
             published_at=parse_datetime(raw.get("date")),
-            agency_name=agency.get("franchiseName") or agency.get("name") or "Privato",
+            agency_name=agency_name or "Privato",
+            is_private=agency_name is None,
             image_urls=tuple(url for url in (_best_image(i) for i in images) if url),
         )

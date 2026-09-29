@@ -15,6 +15,13 @@ SortKey = Literal["published_desc", "published_asc", "price_asc", "price_desc", 
 published_expr = func.coalesce(Listing.published_at, Listing.first_seen_at)
 
 
+def private_listing_ids():
+    """Listings with at least one active ad published by the owner."""
+    return select(SourceLink.listing_id).where(
+        SourceLink.is_private == True, SourceLink.is_active == True  # noqa: E712
+    )
+
+
 def _csv(value: Optional[str]) -> list[str]:
     return [v.strip() for v in value.split(",") if v.strip()] if value else []
 
@@ -31,6 +38,9 @@ class ListingFilters:
     m2_max: Optional[int] = Query(None, ge=0)
     rooms_min: Optional[int] = Query(None, ge=0, le=20)
     position: Optional[Literal["certa", "incerta"]] = Query(None, description="certezza della posizione")
+    advertiser: Optional[Literal["privato", "agenzia"]] = Query(
+        None, description="privato: almeno un annuncio pubblicato dal proprietario; agenzia: nessuno"
+    )
     has_price: bool = Query(False)
     include_inactive: bool = Query(False)
     q: Optional[str] = Query(None, max_length=100)
@@ -50,6 +60,10 @@ class ListingFilters:
                 col(SourceLink.source).in_(sources), SourceLink.is_active == True  # noqa: E712
             )
             query = query.where(col(Listing.id).in_(linked))
+        if self.advertiser == "privato":
+            query = query.where(col(Listing.id).in_(private_listing_ids()))
+        elif self.advertiser == "agenzia":
+            query = query.where(col(Listing.id).not_in(private_listing_ids()))
         if self.position == "certa":
             query = query.where(col(Listing.geo_precision).in_(CERTAIN_PRECISIONS))
         elif self.position == "incerta":

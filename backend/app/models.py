@@ -43,6 +43,7 @@ class SourceLink(SQLModel, table=True):
     external_id: str
     url: str
     agency_name: Optional[str] = None
+    is_private: Optional[bool] = None  # owner advertising directly; None = the site does not say
     price: Optional[int] = None
     first_seen_at: datetime = Field(default_factory=utcnow)
     last_seen_at: datetime = Field(default_factory=utcnow)
